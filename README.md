@@ -17,6 +17,7 @@
 
 ## 缓存
 [针对 Redis 的缓存队列面试知识集合](/Cache/Cache.md)
+[布隆过滤器](/Cache/BloomFilter.md)
 
 ## 高并发
 
