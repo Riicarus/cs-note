@@ -27,7 +27,7 @@
 最优准确性条件: $k = ln2 * (m / n)$
 
 ## Redis 实现布隆过滤器
-> 使用 spring-boot-starter-data-redis + guava
+> 使用 spring-boot-starter-data-redis + LUA
 
 ### 下载布隆过滤器  
 ```bash
