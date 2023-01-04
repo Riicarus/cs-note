@@ -4,6 +4,9 @@
 ## 自我介绍
 [自我介绍](/SelfInro.md)
 
+## 学习路线
+[学习路线](/LearnPath.md)
+
 ## 计网
 [计网概述](/ComputerNetworking/Generic.md)
 
