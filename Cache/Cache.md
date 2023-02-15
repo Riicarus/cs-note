@@ -71,6 +71,21 @@
 - 如果缓存的数据更新不频繁, 并且刷新缓存耗时少, 可以使用分布式中间件的分布式互斥锁/本地锁来保证只有少量请求可以请求数据库, 并且刷新缓存, 其余线程等待锁释放后可以访问新缓存.
 - 如果缓存的数据更新频繁或者刷新缓存耗时长, 可以利用定时线程在缓存过期前主动重新构建缓存或者延长缓存过期时间, 保证所有请求能够访问到对应的缓存.
 
+## 缓存问题: 大 key 问题
+> 大 key: 一个 Redis key 中存储了过大或者过多的数据. 如: MB 级别的 String, W 级别的数据量.
+**导致的问题:**
+  - Client 执行命令速度变慢.
+  - 内存溢出或者重要的 key 被清除.
+  - 集群下数据分片使用率不均等, 难以负载均衡.
+  - 处理大 key 时, Redis 自身服务变慢, 波及相关服务.
+  - 处理大 key 时, 主库可能长时间阻塞, 导致同步中断甚至主从切换.
+
+**解决方案:**
+ - 拆分大 key.
+ - 清理大 key, 使用其他存储方式进行存储.
+ - 定期清理过期的数据.
+ - 监控 Redis 内存水位.
+
 ## 缓存问题: 并发竞争
 > 多客户端同时并发写一个 key, 导致数据错误.　　
 > 等同于问: Redis 事务的 CAS　方案.
@@ -114,6 +129,42 @@ Redis 是单线程工作模型. 只使用单核进行处理.
 ## Redis 数据结构
 > 主要是对各种 Redis 功能的了解.
 
+// 用 go 来描述, String 类型的 RedisObject
+```golang
+// redis object definition
+type RedisObject struct {
+  Type      string
+  Encoding  EncodingType
+  Ptr       *SDS
+  //...
+}
+
+// encoding
+type (
+  EncodingType string
+  StringEncodingType EncodingType
+)
+
+const (
+  // 保存 32 bit 以下的整形
+  INT StringEncodingType    = "int"
+  // 保存大于 32 bit 的字符串
+  RAW StringEncodingType    = "raw"
+  // 保存短字符串(不大于 32 bit), 浮点数
+  EMBSTR StringEncodingType = "embstr"
+)
+
+// SDB
+type SimpleDynamicString struct {
+  // buf 剩余的未使用空间
+  free  int
+  // buf 已使用空间, 当前字符串的长度
+  len   int
+  // 字符串缓冲区, 减少字符串长度变化时, 内存分配次数
+  buf   []char
+}
+```
+
 **数据类型**:  
 - String(Simple Dynamic String, SDS)
 - Hash
@@ -122,7 +173,9 @@ Redis 是单线程工作模型. 只使用单核进行处理.
 - Sorted Set
 
 **String:**  
-简单 k-v get/set
+- 简单 k-v get/set
+- SDS {len, free, buf[]}
+- encoding: int/raw/embstr
 
 **Hash:**
 - 底层:
@@ -155,11 +208,22 @@ Redis 是单线程工作模型. 只使用单核进行处理.
     - 所有元素长度小于 64 字节
   - skiplist
   
-**为什么用 Skiplist 而不用 红黑树/平衡树?**
+## 为什么用 Skiplist 而不用 红黑树/平衡树?
 > tobe edited ...
+>
+
+## Redis 数据结构在业务中的使用
+- List: 关注列表, 最新消息排行, 消息队列...
+- Set: 集合相关操作, 交集/并集/差集...
+- Zset: 集合排序/延时队列/Top K/范围查找...
+- String: 计数器/分布式锁(setnx)/分布式全局 id/验证码...
+- Hash: 购物车/商品信息...
+> 商品信息: `hmset COMMODITY:BIZ_TYPE:ID field value...`
 
 ## Redis 过期策略
 > 有哪些过期策略? 有哪些内存淘汰机制? LRU 代码实现?
+
+**hash 的过期时间无法作用在 field 上**
 
 **过期策略?**
 - 定期删除 + 惰性删除
